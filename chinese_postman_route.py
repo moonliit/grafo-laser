@@ -34,8 +34,8 @@ def chinese_postman_route(G: nx.Graph) -> Tuple[List[int], float]:
     even_vertices = [v for v, d in vertices_degrees if d % 2 == 0]
     odd_vertices = [v for v, d in vertices_degrees if d % 2 != 0]
 
-    # if all vertices have even degree, it has an eulerian cycle
-    if len(even_vertices) == G.number_of_nodes():
+    # if graph is eulerian, optimal solution is an eulerian circuit
+    if nx.is_eulerian(G):
         return get_eulerian_circuit(G)
 
     # TODO: finish this
