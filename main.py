@@ -1,41 +1,39 @@
 from __future__ import annotations
 
-import networkx as nx
-from typing import cast
-from networkx.classes.reportviews import DegreeView
-from graph_utilities.plotting import plot_graph_nx
 from graph_utilities.random_graph import random_graph, random_eulerian
+from chinese_postman_route import chinese_postman_route
+from graph_utilities.plotting import animate_walk_simple
 
 
 if __name__ == "__main__":
-    # define seed for reproducibility
-    seed = None
-
-    # parameters for random graph generation
-    n_vertices = 7 #14
-    p = 0.15
-    weighted = True
-    weight_range = (0.5, 4.0)
-    ensure_connected = True
-    pos_layout = "sphere"
-    compact_scale = 0.6
-    min_node_dist = 0.13
-
-    # construct random graph
+    # construct graph
     G = random_eulerian(
-        n=n_vertices,
-        p=p,
-        seed=seed,
-        weighted=weighted,
-        weight_range=weight_range,
-        ensure_connected=ensure_connected,
-        pos_layout=pos_layout,
-        compact_scale=compact_scale,
-        min_node_dist=min_node_dist
+        n=8,
+        p=0.15,
+        seed=None,
+        weighted=True,
+        weight_range=(0.5, 4.0),
+        ensure_connected=True,
+        pos_layout="sphere",
+        compact_scale=0.6,
+        min_node_dist=0.13
     )
-    print(f"Obtained G: n={G.number_of_nodes()} m={G.number_of_edges()}")
-    print("Odd-degree vertices:", [v for v, d in cast(DegreeView, G.degree()) if d % 2 == 1])
-    print(f"Is eulerian: {nx.is_eulerian(G)}")
 
-    # plot graph
-    plot_graph_nx(G, show_edge_weights=True)
+    # get walk and plot it
+    walk, total_weight = chinese_postman_route(G)
+    anim = animate_walk_simple(
+        G,
+        walk,
+        interval=500,
+        arrow_every=2,
+        cmap_name="plasma",
+        repeat_offset_scale=0.015,
+        repeat_linewidth_base=2.4,
+        repeat_linewidth_step=0.9,
+        growth_factor=0.45,
+        fade=True,
+        fade_steps=6,
+        fade_alpha_min=0.12,
+        annotate_nodes_during_play=True,
+        annotate_first_visit_only=False,
+    )

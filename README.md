@@ -1,5 +1,5 @@
 # Problema
-El problema a resolver es el **chinese potsman problem**:
+El problema a resolver es el **chinese postman problem**:
 
 https://en.wikipedia.org/wiki/Chinese_postman_problem
 

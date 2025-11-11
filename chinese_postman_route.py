@@ -39,4 +39,4 @@ def chinese_postman_route(G: nx.Graph) -> Tuple[List[int], float]:
         return get_eulerian_circuit(G)
 
     # TODO: finish this
-    return get_eulerian_circuit(G)
+    return get_eulerian_circuit(G) # placeholder
