@@ -1,13 +1,13 @@
-# corrected animate_walk_simple with reliable fading
+from matplotlib import cm
 from typing import List, Tuple, Dict, Optional, Any, cast
 from matplotlib.collections import LineCollection
-from matplotlib import cm
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import FancyArrowPatch
 
 import math
 import networkx as nx
 import matplotlib.pyplot as plt
+
 
 def _compute_pos2d_from_graph(G: nx.Graph) -> Dict[int, Tuple[float, float]]:
     pos3d = nx.get_node_attributes(G, "pos")
@@ -84,17 +84,25 @@ def animate_walk_simple(
 
     # helper: compute offset for repeated traversals (hybrid increasing offset)
     def compute_offset_for_edge(u: int, v: int, occurrence_index: int, delta: float, growth: float):
-        (x1, y1), (x2, y2) = pos2d[u], pos2d[v]
+        # canonical undirected endpoints so perpendicular is stable regardless of direction
+        a, b = (u, v) if u <= v else (v, u)
+        (x1, y1), (x2, y2) = pos2d[a], pos2d[b]
+
         dx = x2 - x1
         dy = y2 - y1
         length = math.hypot(dx, dy)
         if length == 0:
             return (0.0, 0.0)
+
+        # unit perpendicular vector (consistent for undirected edge)
         ux = -dy / length
         uy = dx / length
+
+        # alternate sides: 0 -> +, 1 -> -, 2 -> + farther, 3 -> - farther, ...
         side = 1 if (occurrence_index % 2 == 0) else -1
         layer_base = 1.0 + (occurrence_index // 2) * growth
         offset_amount = delta * side * layer_base
+
         return (ux * offset_amount, uy * offset_amount)
 
     # compute span and base delta

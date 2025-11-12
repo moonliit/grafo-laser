@@ -7,7 +7,7 @@ from graph_utilities.plotting import animate_walk_simple
 
 if __name__ == "__main__":
     # construct graph
-    G = random_eulerian(
+    G = random_graph(
         n=8,
         p=0.15,
         seed=None,
@@ -32,8 +32,8 @@ if __name__ == "__main__":
         repeat_linewidth_step=0.9,
         growth_factor=0.45,
         fade=True,
-        fade_steps=6,
-        fade_alpha_min=0.12,
+        fade_steps=10,
+        fade_alpha_min=0.15,
         annotate_nodes_during_play=True,
         annotate_first_visit_only=False,
     )
