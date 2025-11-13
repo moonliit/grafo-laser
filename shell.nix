@@ -6,6 +6,7 @@ let
     numpy
     matplotlib
     networkx
+    trimesh
   ]);
 in
 

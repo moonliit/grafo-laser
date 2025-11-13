@@ -1,5 +1,5 @@
 from matplotlib import cm
-from typing import List, Tuple, Dict, Optional, Any, cast
+from typing import List, Tuple, Dict, Sequence, Optional, Any, cast
 from matplotlib.collections import LineCollection
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import FancyArrowPatch
@@ -9,7 +9,73 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 
-def _compute_pos2d_from_graph(G: nx.Graph) -> Dict[int, Tuple[float, float]]:
+def _norm(v: Sequence[float]) -> Tuple[float, float, float]:
+    x, y, z = v
+    n = math.hypot(math.hypot(x, y), z)
+    if n == 0:
+        return (0.0, 0.0, 0.0)
+    return (x / n, y / n, z / n)
+
+def _cross(a: Sequence[float], b: Sequence[float]) -> Tuple[float, float, float]:
+    ax, ay, az = a; bx, by, bz = b
+    return (ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx)
+
+
+def perspective_projection(
+    G: nx.Graph,
+    *,
+    eye: Tuple[float,float,float] = (3.0, 3.0, 3.0),
+    center: Tuple[float,float,float] = (0.0, 0.0, 0.0),
+    up: Tuple[float,float,float] = (0.0, 1.0, 0.0),
+    focal: float = 1.0,
+    scale: float = 1.0,
+    z_clip_eps: float = 1e-3
+) -> Dict[int, Tuple[float, float]]:
+    """
+    Perspective (pinhole) projection of 3D node positions into 2D.
+    - focal: focal length (units relative to camera coordinate units)
+    - z_clip_eps: small epsilon to avoid division by zero for points on/behind camera
+    Returns node -> (x,y) in plot units; scaled so max span ~= scale.
+    """
+    pos3d = nx.get_node_attributes(G, "pos")
+    if not pos3d or len(pos3d) != G.number_of_nodes():
+        raise ValueError("Graph must have 'pos' (x,y,z) for every node")
+
+    # camera basis
+    forward = _norm((center[0] - eye[0], center[1] - eye[1], center[2] - eye[2]))
+    right = _cross(forward, up)
+    right = _norm(right)
+    up_cam = _cross(right, forward)
+
+    coords_raw = {}
+    for n, p in pos3d.items():
+        vx = p[0] - eye[0]
+        vy = p[1] - eye[1]
+        vz = p[2] - eye[2]
+        # coordinates in camera frame
+        x_cam = vx * right[0] + vy * right[1] + vz * right[2]
+        y_cam = vx * up_cam[0] + vy * up_cam[1] + vz * up_cam[2]
+        z_cam = vx * forward[0] + vy * forward[1] + vz * forward[2]
+        if z_cam <= z_clip_eps:
+            # point is at or behind the camera plane; nudge a little forward to avoid blowup
+            z_cam = z_clip_eps
+        # perspective division
+        x_proj = (x_cam / z_cam) * focal
+        y_proj = (y_cam / z_cam) * focal
+        coords_raw[n] = (x_proj, y_proj)
+
+    # scale to desired span
+    xs = [c[0] for c in coords_raw.values()]
+    ys = [c[1] for c in coords_raw.values()]
+    span_x = max(xs) - min(xs) if xs else 1.0
+    span_y = max(ys) - min(ys) if ys else 1.0
+    span = max(1e-9, max(span_x, span_y))
+    factor = (scale / span) if span > 0 else 1.0
+    coords = {n: (x * factor, y * factor) for n, (x, y) in coords_raw.items()}
+    return coords
+
+
+def discard_z_projection(G: nx.Graph) -> Dict[int, Tuple[float, float]]:
     pos3d = nx.get_node_attributes(G, "pos")
     if pos3d and len(pos3d) == G.number_of_nodes():
         return {k: (v[0], v[1]) for k, v in pos3d.items()}
@@ -35,11 +101,22 @@ def animate_walk_simple(
     fade: bool = True,
     fade_steps: Optional[int] = None,
     fade_alpha_min: float = 0.12,
+    projection: str = "perspective",
 ) -> FuncAnimation:
     if len(walk) < 2:
         raise ValueError("walk must contain at least two vertices")
 
-    pos2d = _compute_pos2d_from_graph(G)
+    if projection == "perspective":
+        pos2d = perspective_projection(
+            G,
+            eye=(4.0, 2.5, 2.0),    # camera position
+            center=(0.0, 0.0, 0.0), # look at center
+            up=(0.0, 0.0, 1.0),     # z-up
+            focal=1.2,
+            scale=1.1
+        )
+    else:
+        pos2d = discard_z_projection(G)
 
     # Build list of sequential base segments (without offsets)
     segments_base: List[Tuple[Tuple[float, float], Tuple[float, float]]] = []
