@@ -32,7 +32,7 @@ if __name__ == "__main__":
         repeat_linewidth_step=0.9,
         growth_factor=0.45,
         fade=True,
-        fade_steps=10,
+        fade_steps=len(walk),
         fade_alpha_min=0.15,
         annotate_nodes_during_play=True,
         annotate_first_visit_only=False,

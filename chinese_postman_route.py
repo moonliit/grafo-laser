@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import networkx as nx
+from networkx.algorithms.matching import min_weight_matching
 from networkx.classes.reportviews import DegreeView
-from typing import cast, Tuple, List, Iterable
+from typing import cast, Tuple, Dict, List, Iterable
 
 
 Pair = Tuple[int, int]
@@ -76,73 +77,66 @@ def get_eulerian_circuit(G: nx.Graph) -> PathWithLen:
     return circuit, total_weight
 
 
-def generate_pairings(nodes: List[int]) -> Iterable[Pairing]:
-    if not nodes:
-        yield []
-        return
-
-    first = nodes[0]
-    # try pairing `first` with each other node
-    for i in range(1, len(nodes)):
-        second = nodes[i]
-        rest = nodes[1:i] + nodes[i+1:]
-
-        # recursively get pairings of the rest
-        for rest_pairing in generate_pairings(rest):
-            yield [(first, second)] + rest_pairing
-
-
-def evaluate_pairings(
-    G: nx.Graph,
-    odd_vertices: List[int],
-) -> List[Tuple[Pairing, float, List[PathWithLen]]]:
-    if len(odd_vertices) == 0:
-        return []
-
-    nodes = list(odd_vertices)
-    results = []
-    for pairing in generate_pairings(nodes):
-        total = 0.0
-        paths_acc: List[PathWithLen] = []
-        for (u, v) in pairing:
-            path = nx.shortest_path(G, u, v, weight="weight")
-            length = nx.shortest_path_length(G, u, v, weight="weight")
-            total += length
-            paths_acc.append((path, length))
-        results.append((pairing, total, paths_acc))
-
-    results.sort(key=lambda t: t[1])
-    return results
-
-
 def chinese_postman_route(G: nx.Graph) -> PathWithLen:
+    assert nx.is_connected(G)
+
     # if graph is eulerian, optimal solution is an eulerian circuit
     if nx.is_eulerian(G):
         return get_eulerian_circuit(G)
 
+    # 1. get odd vertices
     vertices_degrees = cast(DegreeView, G.degree())
     odd_vertices = [v for v, d in vertices_degrees if d % 2 != 0]
+    k = len(odd_vertices)
 
-    if not odd_vertices:
+    if k == 0:
         return get_eulerian_circuit(G)
 
-    pairings = evaluate_pairings(G, odd_vertices)
-    _, _, best_paths = pairings[0]
+    # 2. computer every pairwise dijkstra from odd vertices
+    dist: Dict[int, Dict[int, float]] = {}   # dist[src][dst] = distance
+    pred: Dict[int, Dict[int, List[int]]] = {}  # pred[src][dst] = path list
 
-    # create multigraph from G
+    for src in odd_vertices:
+        lengths, paths = nx.single_source_dijkstra(G, src, weight="weight")
+        # keep only required targets (odds)
+        dist[src] = {dst: float(lengths[dst]) for dst in odd_vertices if dst in lengths and dst != src}
+        pred[src] = {dst: paths[dst] for dst in odd_vertices if dst in paths and dst != src}
+
+    # 3. build complete metric graph on odd vertices
+    K = nx.Graph()
+    K.add_nodes_from(odd_vertices)
+    for i, u in enumerate(odd_vertices):
+        for v in odd_vertices[i+1:]:
+            d = dist[u].get(v, float("inf"))
+            K.add_edge(u, v, weight=d)
+
+    # 4. min-weight perfect matching (Blossom)
+    matching = min_weight_matching(K, weight="weight")
+    matching_pairs = list(matching)  # set of unordered pairs
+
+    # 5. create multigraph from G
     MG = nx.MultiGraph()
     MG.add_nodes_from(G.nodes(data=True))
     for u, v, data in G.edges(data=True):
         MG.add_edge(u, v, **dict(data))
 
-    # duplicate edges along each shortest path in best_paths
-    for path, _ in best_paths:
-        # path is a list of vertices [a, ..., b]
-        if not path or len(path) < 2:
-            continue
-        for a, b in zip(path, path[1:]):
-            w = _edge_weight_safe(G, a, b, default=1.0)
-            MG.add_edge(a, b, weight=w)
+    # 6. duplicate edges along each matched shortest path
+    for u, v in matching_pairs:
+        path: List[int] = []
+        # try fetching precomputed path
+        if v in pred.get(u, {}):
+            path = pred[u][v]
+        elif u in pred.get(v, {}):
+            path = pred[v][u]
+        else:
+            # fallback: compute on the fly
+            path = nx.shortest_path(G, u, v, weight="weight")
 
-    circuit, total_weight = get_eulerian_circuit(MG)
-    return circuit, total_weight
+        # duplicate each edge along the path
+        if path and len(path) >= 2:
+            for a, b in zip(path, path[1:]):
+                w = _edge_weight_safe(G, a, b, default=1.0)
+                MG.add_edge(a, b, weight=w)
+
+    assert nx.is_eulerian(MG)
+    return get_eulerian_circuit(MG)

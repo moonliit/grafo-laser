@@ -245,5 +245,15 @@ def animate_walk_simple(
     frames = list(range(0, n_steps + 1))
     anim = FuncAnimation(fig, update, frames=frames, interval=interval, blit=False, repeat=repeat)
 
+    # Keep the starting vertex highlighted
+    start = walk[0]
+    nx.draw_networkx_nodes(G, pos2d,
+        nodelist=[start],
+        node_color='red',
+        node_size=300,
+        ax=ax,
+        edgecolors='black'
+    )
+
     plt.show()
     return anim
