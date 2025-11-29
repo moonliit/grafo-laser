@@ -6,7 +6,11 @@ let
     numpy
     matplotlib
     networkx
-    trimesh
+    fastapi
+    uvicorn
+    python-multipart
+    pillow
+    scikit-image
   ]);
 in
 
