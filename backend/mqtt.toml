@@ -1,0 +1,17 @@
+[broker]
+#host = "192.168.0.10"
+host = "localhost"
+port = 1883
+keepalive = 60
+client_id = "laser-server"
+clean_session = true
+use_tls = false
+tls_insecure = false
+
+[topics]
+subscribe = []
+publish = "laser/frame"
+
+[options]
+qos = 1
+retain = false

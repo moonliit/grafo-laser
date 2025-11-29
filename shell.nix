@@ -8,9 +8,7 @@ let
     networkx
     fastapi
     uvicorn
-    python-multipart
-    pillow
-    scikit-image
+    paho-mqtt
   ]);
 in
 
