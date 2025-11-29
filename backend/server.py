@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 import paho.mqtt.client as mqtt
+import paho.mqtt.enums as mqtt_enums
 import tomllib
 import json
 
@@ -34,6 +35,7 @@ options = config["options"]
 
 # Create MQTT client
 client = mqtt.Client(
+    mqtt_enums.CallbackAPIVersion.VERSION2,
     client_id=broker["client_id"],
     clean_session=broker["clean_session"]
 )
@@ -45,7 +47,7 @@ if broker["use_tls"]:
         client.tls_insecure_set(True)
 
 # Connect
-CONNECT_CLIENT = True
+CONNECT_CLIENT = False
 if CONNECT_CLIENT:
     client.connect(
         host=broker["host"],
