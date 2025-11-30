@@ -35,7 +35,7 @@ allow_anonymous true
 listener 1883 0.0.0.0
 protocol mqtt
 
-listener 9001
+listener 9001 0.0.0.0
 protocol websockets
 ```
 
@@ -44,7 +44,7 @@ Utilizamos el archivo `mqtt.json` para controlar los parametros de MQTT:
 
 ```json
 {
-  "host": "192.168.1.39",
+  "host": "(IP LOCAL DEL BROKER AQUI)",
   "port": 9001,
   "topic": "laser/frame"
 }
