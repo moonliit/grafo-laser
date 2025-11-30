@@ -1,5 +1,7 @@
+[mqtt]
+enabled = true
+
 [broker]
-#host = "192.168.0.10"
 host = "localhost"
 port = 1883
 keepalive = 60

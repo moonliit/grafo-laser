@@ -3,6 +3,7 @@
 let
   python = pkgs.python312;                      # choose python version
   pythonEnv = python.withPackages (ps: with ps; [
+    pip
     numpy
     matplotlib
     networkx

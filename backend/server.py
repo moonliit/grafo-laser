@@ -47,8 +47,8 @@ if broker["use_tls"]:
         client.tls_insecure_set(True)
 
 # Connect
-CONNECT_CLIENT = False
-if CONNECT_CLIENT:
+mqtt_enabled = config["mqtt"]["enabled"]
+if mqtt_enabled:
     client.connect(
         host=broker["host"],
         port=broker["port"],
