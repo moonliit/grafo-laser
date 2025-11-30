@@ -50,6 +50,8 @@ Utilizamos el archivo `mqtt.json` para controlar los parametros de MQTT:
 }
 ```
 
+Cabe destacar que `port` en el json NO es 1883, sino 9001. Como explicado previamente, el frontend se comunica con el broker mosquitto mediante websockets, y para ello utiliza el puerto 9001 de (como se puede observar arriba en la configuracion de mosquitto). El puerto 1883 es para que se pueda establecer conexion usual con clientes MQTT de forma usual, el cual seria el caso de ESP32 por ejemplo.
+
 ## Backend
 El backend se encarga de generar el grafo, y luego resolver el problema computacional propuesto a continuacion.
 
