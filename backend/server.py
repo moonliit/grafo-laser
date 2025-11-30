@@ -8,11 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 
-import paho.mqtt.client as mqtt
-import paho.mqtt.enums as mqtt_enums
-import tomllib
-import json
-
 # Create FastAPI app
 app = FastAPI(title="Draw→PixelGraph→CPP (single-step)")
 
@@ -24,39 +19,6 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
-
-# Get MQT info
-with open("mqtt.toml", "rb") as f:
-    config = tomllib.load(f)
-
-broker = config["broker"]
-topics = config["topics"]
-options = config["options"]
-
-# Create MQTT client
-client = mqtt.Client(
-    mqtt_enums.CallbackAPIVersion.VERSION2,
-    client_id=broker["client_id"],
-    clean_session=broker["clean_session"]
-)
-
-# TLS if requested
-if broker["use_tls"]:
-    client.tls_set()
-    if broker["tls_insecure"]:
-        client.tls_insecure_set(True)
-
-# Connect
-mqtt_enabled = config["mqtt"]["enabled"]
-if mqtt_enabled:
-    client.connect(
-        host=broker["host"],
-        port=broker["port"],
-        keepalive=broker["keepalive"]
-    )
-    client.loop_start()
-else:
-    client = None
 
 def keep_largest_component(G: nx.Graph) -> nx.Graph:
     if G.number_of_nodes() == 0:
@@ -129,33 +91,23 @@ async def upload_and_compute_pixels(payload: Dict[str, Any] = Body(...)):
     nodes = {str(n): [float(G.nodes[n]["pos"][0]), float(G.nodes[n]["pos"][1])] for n in G.nodes()}
     edges = [[int(u), int(v), float(G[u][v].get("weight", 1.0))] for u, v in G.edges()]
 
+    # prepare positions for MQTT
+    try:
+        positions = [{"x": float(G.nodes[n]["pos"][0]), "y": float(G.nodes[n]["pos"][1])} for n in walk]
+        positions.pop()
+    except:
+        positions = []
+
     json_resp = {
         "nodes": nodes,
         "edges": edges,
         "n_nodes": G.number_of_nodes(),
         "n_edges": G.number_of_edges(),
         "walk": [int(x) for x in walk],
+        "positions": positions,
         "total_weight": float(total)
     }
-
-    # prepare positions for MQTT
-    positions = [{"x": float(G.nodes[n]["pos"][0]), "y": float(G.nodes[n]["pos"][1])} for n in walk]
-    positions.pop()
-
-    if client is not None:
-        mqtt_payload = json.dumps(positions)
-        mqtt_result = client.publish(
-            topic=topics["publish"],
-            payload=mqtt_payload,
-            qos=options["qos"],
-            retain=options["retain"]
-        )
-        print(f"Published frame to {topics["publish"]}")
-        print(f"result: {mqtt_result.rc}")
-    else:
-        print(f"Frame: {positions}")
-
     return JSONResponse(json_resp)
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("server:app", host="0.0.0.0", port=8000)#, reload=True)

@@ -22,10 +22,36 @@ Frontend simple consistente de un solo archivo html, y se comunica con el backen
 ### Idea
 Le permite al usuario dibujar en un canvas pixelado. Este dibujo luego sera procesado por el backend, y generara una ruta ciclica de minimo peso. Mas informacion en la seccion del backend.
 
+Adicionalmente, el frontend establece la conexion con el mosquitto broker mediante websockets. Requisitos a continuacion.
+
+### Websockets a MQTT
+La decision de que la comunicacion al broker mosquitto sea mediante el frontend se genero en base a un problema que causaba FastAPI y como bloqueaba la comunicacion con el cliente de MQTT. La solucion resulta en que mosquitto puede aceptar inputs de websockets y pueden ser leidas por otros suscriptores, como si fuese un mensaje de MQTT convencional. La desventaja siendo que hay reduccion de velocidad, pero es mejor eso al problema mencionado previamente.
+
+Para hacer que mosquitto acepte websockets se requiere una configuracion de la siguiente forma:
+
+```bash
+allow_anonymous true
+
+listener 1883 0.0.0.0
+protocol mqtt
+
+listener 9001
+protocol websockets
+```
+
+### Configuracion del broker
+Utilizamos el archivo `mqtt.json` para controlar los parametros de MQTT:
+
+```json
+{
+  "host": "192.168.1.39",
+  "port": 9001,
+  "topic": "laser/frame"
+}
+```
+
 ## Backend
 El backend se encarga de generar el grafo, y luego resolver el problema computacional propuesto a continuacion.
-
-Este se encarga ademas, en caso sea activado, de publicar el camino cerrado encontrado en MQTT, segun especificado por el archivo mqtt.toml.
 
 El backend fue desarrollado con Python y FastAPI
 
