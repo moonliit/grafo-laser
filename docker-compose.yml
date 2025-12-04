@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
-    restart: unless-stopped
+    restart: on-failure
 
   frontend:
     build:
@@ -17,4 +17,4 @@ services:
       - "5500:5500"
     depends_on:
       - backend
-    restart: unless-stopped
+    restart: on-failure

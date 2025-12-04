@@ -1,12 +1,16 @@
-from chinese_postman_route import chinese_postman_route
+# server.py
 from typing import Dict, Any
-import networkx as nx
 import math
+import numpy as np
+import networkx as nx
 
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
+
+from graph_utilities.optimize_graph import optimize_graph
+from chinese_postman_route import chinese_postman_route
 
 # Create FastAPI app
 app = FastAPI(title="Draw→PixelGraph→CPP (single-step)")
@@ -29,6 +33,7 @@ def keep_largest_component(G: nx.Graph) -> nx.Graph:
     largest = max(comps, key=len)
     return G.subgraph(largest).copy()
 
+
 # POST /upload_and_compute_pixels
 @app.post("/upload_and_compute_pixels")
 async def upload_and_compute_pixels(payload: Dict[str, Any] = Body(...)):
@@ -38,8 +43,11 @@ async def upload_and_compute_pixels(payload: Dict[str, Any] = Body(...)):
     Returns nodes/edges and computed walk (single-step).
     """
     pixels = payload.get("pixels")
+    tol = payload.get("tol")
     if pixels is None:
         raise HTTPException(status_code=400, detail="missing 'pixels' in JSON body")
+    if tol is None:
+        raise HTTPException(status_code=400, detail="missing 'tol' in JSON body")
 
     # validate rectangular shape
     if not isinstance(pixels, list) or len(pixels) == 0 or not isinstance(pixels[0], list):
@@ -51,7 +59,7 @@ async def upload_and_compute_pixels(payload: Dict[str, Any] = Body(...)):
         if len(row) != w:
             raise HTTPException(status_code=400, detail="non-rectangular 'pixels' array")
 
-    # build graph: each pixel with value truthy (1) becomes node with pos (x,y,0)
+    # build graph: each truthy pixel becomes a node with pos (x,y,0)
     G = nx.Graph()
     id_of = {}
     node_id = 0
@@ -84,18 +92,37 @@ async def upload_and_compute_pixels(payload: Dict[str, Any] = Body(...)):
     if G.number_of_nodes() == 0:
         raise HTTPException(status_code=400, detail="empty graph (no pixels set)")
 
-    # compute walk
-    walk, total = chinese_postman_route(G)
+    # optimize graph: collapse straight chains
+    try:
+        G = optimize_graph(G, tol=tol, collapse_cycles=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"graph optimization failed: {e}")
+
+    if G.number_of_nodes() == 0:
+        raise HTTPException(status_code=400, detail="empty graph (no pixels set)")
+
+    # keep largest connected component again (safety)
+    G = keep_largest_component(G)
+
+    if G.number_of_nodes() == 0:
+        raise HTTPException(status_code=400, detail="empty graph (no pixels set)")
+
+    # compute walk (chinese postman) - expects graph with weights
+    try:
+        walk, total = chinese_postman_route(G)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"chinese_postman_route failed: {e}")
 
     # prepare nodes/edges for JSON
     nodes = {str(n): [float(G.nodes[n]["pos"][0]), float(G.nodes[n]["pos"][1])] for n in G.nodes()}
     edges = [[int(u), int(v), float(G[u][v].get("weight", 1.0))] for u, v in G.edges()]
 
-    # prepare positions for MQTT
+    # prepare positions for possible MQTT publishing use (walk may repeat start)
     try:
         positions = [{"x": float(G.nodes[n]["pos"][0]), "y": float(G.nodes[n]["pos"][1])} for n in walk]
-        positions.pop()
-    except:
+        if positions:
+            positions.pop()  # drop final duplicated return-to-start if present
+    except Exception:
         positions = []
 
     json_resp = {
@@ -105,9 +132,12 @@ async def upload_and_compute_pixels(payload: Dict[str, Any] = Body(...)):
         "n_edges": G.number_of_edges(),
         "walk": [int(x) for x in walk],
         "positions": positions,
-        "total_weight": float(total)
+        "total_weight": float(total),
+        "tol": tol
     }
     return JSONResponse(json_resp)
 
+
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8000)#, reload=True)
+    # Run without reloader to avoid multi-process side-effects.
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=False)

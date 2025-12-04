@@ -17,6 +17,7 @@ let cellPx = 8;               // pixel display size
 let mouseDown = false;
 let drawColor = 1;            // 1 -> paint, 0 -> erase
 let lastCell = null;          // last painted cell {r,c}
+let cancelAnimation = false;
 
 // initialize grid & drawing
 function initGrid(n) {
@@ -174,8 +175,20 @@ window.addEventListener('mouseup', () => { drawColor = 1; });
 
 // clear
 document.getElementById('clearBtn').addEventListener('click', () => {
-  initGrid(GRID);
-  info.innerText = '';
+  cancelAnimation = true;   // <-- stop animation immediately
+  currentWalk = [];         // <-- clear walk
+  lastGraphData = null;     // <-- clear graph overlay data
+  info.innerText = '';      // <-- clear info panel
+
+  initGrid(GRID);           // redraw blank grid
+});
+
+document.getElementById('highlightAllNodesChk').addEventListener('change', (e) => {
+  highlightAllNodes = e.target.checked;
+  // Redraw last result if any
+  if (typeof currentWalk !== 'undefined' && currentWalk.length > 0 && lastGraphData) {
+    drawResultGraph(lastGraphData);
+  }
 });
 
 // grid size change
@@ -185,10 +198,12 @@ gridSizeSelect.addEventListener('change', (e) => {
 
 // Upload pixels as JSON to endpoint /upload_and_compute_pixels (server must have it)
 document.getElementById('computeBtn').addEventListener('click', async () => {
-  const payload = { pixels: [] };
+  const payload = { pixels: [], tol: 1e-6, };
   for (let r=0;r<GRID;r++){
     payload.pixels.push(Array.from(PIXELS[r]));
   }
+  const tol = parseFloat(document.getElementById("dpTolerance").value) || 0;
+  payload.tol = tol;
   info.innerText = 'Uploading pixels...';
   try {
     const resp = await fetch('http://localhost:8000/upload_and_compute_pixels', {
@@ -202,20 +217,26 @@ document.getElementById('computeBtn').addEventListener('click', async () => {
     }
     const data = await resp.json();
     currentWalk = data.positions;
-    info.innerText = `nodes=${data.n_nodes} edges=${data.n_edges} walk_len=${data.walk.length} total=${data.total_weight.toFixed(3)}`;
+    lastGraphData = data;
+    info.innerText = `nodes=${data.n_nodes} edges=${data.n_edges} walk_len=${data.walk.length} total=${data.total_weight.toFixed(3)} tol=${data.tol}`;
     drawResultGraph(data);
   } catch (err) {
     info.innerText = 'Upload error: ' + err;
   }
 });
 
-// Helper: draw a highlighted marker for the start node (posXY: [x, y] in canvas coords)
-function drawStartMarkerAt(posXY) {
-  const r = Math.max(6, cellPx * 0.6);
+// draw a circular marker. optional params to vary size/color when highlighting all nodes.
+function drawStartMarkerAt(posXY, opts = {}) {
+  const defaultRadius = Math.max(6, cellPx * 0.6);
+  const r = typeof opts.r === 'number' ? opts.r : defaultRadius;
+  const fill = opts.fill || "#ff0000";    // default bright red
+  const stroke = opts.stroke || "#880000"; // default dark red
+  const lineW = typeof opts.lineWidth === 'number' ? opts.lineWidth : 2;
+
   ctx.beginPath();
-  ctx.fillStyle = "#ff0000";       // bright red fill
-  ctx.strokeStyle = "#880000";     // dark red border
-  ctx.lineWidth = 2;
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lineW;
   ctx.arc(posXY[0], posXY[1], r, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
@@ -252,7 +273,8 @@ function drawResultGraph(data){
     ctx.lineTo(b[0], b[1]);
     ctx.stroke();
   }
-  // draw nodes
+
+  // draw nodes (base)
   for (const [k, p] of Object.entries(pos)) {
     ctx.beginPath();
     ctx.fillStyle = '#fff';
@@ -262,10 +284,17 @@ function drawResultGraph(data){
     ctx.stroke();
   }
 
-  // highlight start vertex if walk provided
-  const startId = (data.walk && data.walk.length > 0) ? String(data.walk[0]) : null;
-  if (startId && pos[startId]) {
-    drawStartMarkerAt(pos[startId]);
+  // highlight: either all nodes or only the start
+  if (highlightAllNodes) {
+    // smaller cyanish marker for every node
+    for (const p of Object.values(pos)) {
+      drawStartMarkerAt(p, { r: Math.max(4, cellPx*0.35), fill: '#00e5c1', stroke: '#008f6b', lineWidth: 1.5 });
+    }
+  } else {
+    const startId = (data.walk && data.walk.length > 0) ? String(data.walk[0]) : null;
+    if (startId && pos[startId]) {
+      drawStartMarkerAt(pos[startId]);
+    }
   }
 
   if (data.walk && data.walk.length > 1) {
@@ -275,18 +304,21 @@ function drawResultGraph(data){
 
 // animate walk (simple)
 function animateWalkOnCanvas(pos, walk, edges) {
+  cancelAnimation = false;  // reset on new animation
+
   const steps = [];
   for (let i=0;i<walk.length-1;i++){
     const a = pos[String(walk[i])], b = pos[String(walk[i+1])];
     if (!a || !b) continue;
     steps.push([a,b]);
   }
+
   let s = 0;
   function frame(){
-    // redraw background for clarity
+    if (cancelAnimation) return;   // <-- stop immediately
+
     drawGrid();
 
-    // draw static graph overlay (edges)
     ctx.lineWidth = 1;
     ctx.strokeStyle = '#ddd';
     for (const e of edges) {
@@ -296,7 +328,12 @@ function animateWalkOnCanvas(pos, walk, edges) {
       ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
     }
 
-    // draw trail
+    if (highlightAllNodes) {
+      for (const p of Object.values(pos)) {
+        drawStartMarkerAt(p, { r: Math.max(4, cellPx*0.35), fill: '#00e5c1', stroke: '#008f6b', lineWidth: 1.0 });
+      }
+    }
+
     for (let i=0;i<s;i++){
       const seg = steps[i]; if(!seg) continue;
       const t = i / Math.max(1, steps.length-1);
@@ -307,14 +344,13 @@ function animateWalkOnCanvas(pos, walk, edges) {
       ctx.lineTo(seg[1][0], seg[1][1]);
       ctx.stroke();
     }
-    // current marker
+
     if (steps.length > 0) {
       const cur = steps[Math.min(s, steps.length-1)][1];
       ctx.beginPath(); ctx.fillStyle='red'; ctx.arc(cur[0], cur[1], Math.max(4, cellPx*0.32), 0, Math.PI*2); ctx.fill();
     }
 
-    // keep start marker visible on top (draw last)
-    if (walk && walk.length > 0) {
+    if (!highlightAllNodes && walk && walk.length > 0) {
       const startId = String(walk[0]);
       if (startId && pos[startId]) {
         drawStartMarkerAt(pos[startId]);

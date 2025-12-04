@@ -3,44 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <title>Pixel Grid Painter — with Pencil Line Interpolation + Start Marker</title>
+  <link rel="stylesheet" href="style.css">
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-  <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 16px; }
-    #canvas { border: 1px solid #333; image-rendering: pixelated; cursor: crosshair; display:block; }
-    .controls { margin-top: 8px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    .control-group { display:flex; gap:6px; align-items:center; }
-    button { padding:6px 10px; }
-    #info { margin-top: 8px; white-space: pre-wrap; }
-  </style>
 </head>
 <body>
-  <h3>Pixel grid painter — paint pixels directly and upload raw pixel array</h3>
+  <div class="container">
+    <h3>Pixel grid painter — paint pixels directly and upload raw pixel array</h3>
 
-  <div class="controls">
-    <div class="control-group">
-      <label for="gridSize"><strong>Grid size</strong></label>
-      <select id="gridSize">
-        <option value="32">32 × 32</option>
-        <option value="50">50 × 50</option>
-        <option value="64" selected>64 × 64</option>
-        <option value="100">100 × 100</option>
-      </select>
+    <div class="controls">
+      <div class="control-group">
+        <label for="gridSize"><strong>Grid size</strong></label>
+        <select id="gridSize">
+          <option value="32">32 × 32</option>
+          <option value="50">50 × 50</option>
+          <option value="64" selected>64 × 64</option>
+          <option value="100">100 × 100</option>
+        </select>
+      </div>
+
+      <div class="control-group">
+        <button id="clearBtn">Clear canvas</button>
+        <button id="computeBtn">Compute walk</button>
+        <button id="sendBtn">Send to MQTT</button>
+        <label style="margin-left: 10px; user-select: none;">
+          <input type="checkbox" id="highlightAllNodesChk">
+          Highlight all nodes
+        </label>
+        <label style="margin-left: 10px; user-select: none;">
+          DP tolerance:
+          <input
+            type="number"
+            id="dpTolerance"
+            step="0.01"
+            min="0"
+            value="0.5"
+            style="width: 70px; padding: 2px 4px;"
+          >
+        </label>
+      </div>
     </div>
 
-    <div class="control-group">
-      <button id="clearBtn">Clear canvas</button>
-      <button id="computeBtn">Compute walk</button>
-      <button id="sendBtn">Send to MQTT</button>
-    </div>
+    <canvas id="canvas" width="800" height="800"></canvas>
+    <div id="info"></div>
   </div>
 
-  <canvas id="canvas" width="512" height="512"></canvas>
-  <div id="info"></div>
-
   <script>
-    let currentWalk = []
+    let currentWalk = [];
+    let lastGraphData = {};
+    let highlightAllNodes = false;
   </script>
-  <script src="ws-mqtt.js"></script>
   <script src="pixel-grid.js"></script>
+  <script src="ws-mqtt.js"></script>
 </body>
 </html>
