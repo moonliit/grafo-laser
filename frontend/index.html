@@ -1,58 +1,140 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Pixel Grid Painter — with Pencil Line Interpolation + Start Marker</title>
+  <title>Vector Canvas — Freehand Draw</title>
+
+  <!-- your existing visual stylesheet -->
   <link rel="stylesheet" href="style.css">
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    /* small local tweaks to ensure layout works even if you don't use the big stylesheet */
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding-top: 8px;
+    }
+    .controls {
+      width: 100%;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .control-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    #canvas-wrap {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    #canvas {
+      width: 768px;
+      max-width: 92vw;
+      height: 512px;
+      background: #fff;
+      border-radius: 6px;
+    }
+    #info {
+      min-height: 28px;
+      width: 768px;
+      max-width: 92vw;
+      text-align: center;
+    }
+    label small {
+      display: block;
+      font-weight: 400;
+      color: var(--muted, #777);
+      font-size: 0.85rem;
+    }
+  </style>
 </head>
+
 <body>
   <div class="container">
-    <h3>Pixel grid painter — paint pixels directly and upload raw pixel array</h3>
+    <h3>Vector Canvas — freehand strokes</h3>
 
     <div class="controls">
+
+      <!-- === Left group: clear / compute / send === -->
       <div class="control-group">
-        <label for="gridSize"><strong>Grid size</strong></label>
-        <select id="gridSize">
-          <option value="32">32 × 32</option>
-          <option value="50">50 × 50</option>
-          <option value="64" selected>64 × 64</option>
-          <option value="100">100 × 100</option>
-        </select>
+        <button id="clearBtn">Clear</button>
+        <button id="computeBtn">Compute (server)</button>
+        <button id="sendBtn">Send (server)</button>
       </div>
 
+      <!-- === Tolerance === -->
       <div class="control-group">
-        <button id="clearBtn">Clear canvas</button>
-        <button id="computeBtn">Compute walk</button>
-        <button id="sendBtn">Send to MQTT</button>
-        <label style="margin-left: 10px; user-select: none;">
+        <label style="user-select:none;">
+          DP tolerance:
+          <input id="dpTolerance" type="number" step="0.1" min="0" value="1.0" style="width:80px; margin-left:6px;">
+          <small>Sent to server for Douglas–Peucker</small>
+        </label>
+      </div>
+
+      <!-- === Merge strokes into single polyline === -->
+      <div class="control-group">
+        <label style="user-select:none;">
+          <input type="checkbox" id="mergeStrokesChk">
+          Merge strokes into single polyline (server)
+        </label>
+      </div>
+
+      <!-- ========================= NEW ITEMS BELOW ========================= -->
+
+      <!-- === Highlight all returned graph nodes === -->
+      <div class="control-group">
+        <label style="user-select:none;">
           <input type="checkbox" id="highlightAllNodesChk">
           Highlight all nodes
         </label>
-        <label style="margin-left: 10px; user-select: none;">
-          DP tolerance:
-          <input
-            type="number"
-            id="dpTolerance"
-            step="0.01"
-            min="0"
-            value="0.5"
-            style="width: 70px; padding: 2px 4px;"
-          >
+      </div>
+
+      <!-- === Multi-trace merge: combine intersecting strokes === -->
+      <div class="control-group">
+        <label style="user-select:none;">
+          <input type="checkbox" id="combineIntersectingChk">
+          Combine intersecting traces (graph build)
         </label>
       </div>
+
+      <!-- === Animation speed override (optional) === -->
+      <div class="control-group">
+        <label style="user-select:none;">
+          Anim speed:
+          <input id="animSpeedInput" type="number" step="50" min="50" value="2000"
+                 style="width:80px; margin-left:6px;"
+                 oninput="if(window.vcanvas){ window.vcanvas.setAnimSpeed(this.value); }">
+          <small>px/sec</small>
+        </label>
+      </div>
+
+      <div class="control-group">
+        <label style="margin-left:10px; user-select:none;">
+          <input type="checkbox" id="clientSplitIntersectionsChk">
+          Split intersections on client
+        </label>
+      </div>
+      <!-- ================================================================== -->
+
     </div>
 
-    <canvas id="canvas" width="800" height="800"></canvas>
-    <div id="info"></div>
+    <div id="canvas-wrap">
+      <canvas id="canvas" width="768" height="512"></canvas>
+    </div>
+
+    <div id="info">Draw with mouse or touch. Use "Compute" to POST polyline(s) to the server.</div>
   </div>
 
-  <script>
-    let currentWalk = [];
-    let lastGraphData = {};
-    let highlightAllNodes = false;
-  </script>
-  <script src="pixel-grid.js"></script>
-  <script src="ws-mqtt.js"></script>
+  <script src="draw.js"></script>
 </body>
 </html>
