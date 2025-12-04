@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from chinese_postman_route import chinese_postman_route
 import uvicorn
-import itertools
+import math
+from itertools import combinations
 
 # Create FastAPI app
 app = FastAPI(title="Draw→Polylines→Graph")
@@ -317,13 +318,64 @@ def keep_largest_component(G: nx.Graph) -> nx.Graph:
     largest = max(comps, key=len)
     return G.subgraph(largest).copy()
 
+def _euclidean(p: Tuple[float,float], q: Tuple[float,float]) -> float:
+    """Euclidean distance between two 2D points."""
+    return math.hypot(p[0] - q[0], p[1] - q[1])
+
+def connect_components(G: nx.Graph) -> nx.Graph:
+    # Work on a copy so we don’t mutate input
+    H = G.copy()
+
+    components = [list(c) for c in nx.connected_components(H)]
+    k = len(components)
+
+    # Already connected → nothing to do
+    if k <= 1:
+        return H
+
+    # Build meta-graph of components
+    CG = nx.Graph()
+    CG.add_nodes_from(range(k))  # component indices
+
+    # For each pair of components, compute closest pair of nodes
+    for i, j in combinations(range(k), 2):
+        best_dist = float('inf')
+        best_pair = None
+
+        for u in components[i]:
+            pu = H.nodes[u].get('pos')
+            if pu is None:
+                raise ValueError(f"Node {u} has no 'pos' attribute")
+
+            for v in components[j]:
+                pv = H.nodes[v].get('pos')
+                if pv is None:
+                    raise ValueError(f"Node {v} has no 'pos' attribute")
+
+                d = _euclidean(pu, pv)
+                if d < best_dist:
+                    best_dist = d
+                    best_pair = (u, v)
+
+        # Add the shortest possible "bridge" edge between these two components
+        CG.add_edge(i, j, weight=best_dist, pair=best_pair)
+
+    # Now compute MST on the component-graph
+    mst = nx.minimum_spanning_tree(CG)
+
+    # Add those edges to H
+    for i, j in mst.edges():
+        u, v = CG[i][j]['pair']
+        H.add_edge(u, v)
+
+    return H
+
 def create_graph_helper(payload: Dict[str, Any]) -> nx.Graph:
     """
     Build a NetworkX Graph from payload containing strokes.
     Payload keys:
       "strokes": list of strokes, each stroke is list of {x,y}
       "tol": DP tolerance (optional)
-      "split_intersections": bool (optional)
     Returns:
       NetworkX Graph with nodes having attribute 'pos'=(x,y,0.0) and edges having 'weight' (float)
     """
@@ -332,7 +384,6 @@ def create_graph_helper(payload: Dict[str, Any]) -> nx.Graph:
         raise ValueError("missing or invalid 'strokes'")
 
     tol = float(payload.get("tol", 1.0))
-    split_flag = True #bool(payload.get("split_intersections", False))
 
     # Step A: validate & parse strokes as list of list of (x,y)
     parsed_strokes: List[List[Tuple[float, float]]] = []
@@ -377,48 +428,41 @@ def create_graph_helper(payload: Dict[str, Any]) -> nx.Graph:
 
     # Step D: if split_flag -> compute intersection t-lists per segment and split
     subsegments = []
-    if split_flag:
-        # prepare t lists
-        tlists = [ [0.0, 1.0] for _ in range(len(segments)) ]
+    # prepare t lists
+    tlists = [ [0.0, 1.0] for _ in range(len(segments)) ]
 
-        # pairwise intersection detection
-        for i in range(len(segments)):
-            Ai = segments[i]['a']; Bi = segments[i]['b']
-            for j in range(i+1, len(segments)):
-                Aj = segments[j]['a']; Bj = segments[j]['b']
-                res = _seg_intersect(Ai, Bi, Aj, Bj)
-                if res is None:
-                    continue
-                ix, iy, ti, uj = res
-                # add intersection parameters to both lists (avoid duplicates)
-                # use approx equal check
-                def push_unique(lst, val):
-                    for v in lst:
-                        if abs(v - val) <= 1e-8:
-                            return
-                    lst.append(val)
-                push_unique(tlists[i], ti)
-                push_unique(tlists[j], uj)
+    # pairwise intersection detection
+    for i in range(len(segments)):
+        Ai = segments[i]['a']; Bi = segments[i]['b']
+        for j in range(i+1, len(segments)):
+            Aj = segments[j]['a']; Bj = segments[j]['b']
+            res = _seg_intersect(Ai, Bi, Aj, Bj)
+            if res is None:
+                continue
+            ix, iy, ti, uj = res
+            # add intersection parameters to both lists (avoid duplicates)
+            # use approx equal check
+            def push_unique(lst, val):
+                for v in lst:
+                    if abs(v - val) <= 1e-8:
+                        return
+                lst.append(val)
+            push_unique(tlists[i], ti)
+            push_unique(tlists[j], uj)
 
-        # now split each segment using its tlist
-        for idx, seg in enumerate(segments):
-            ts = sorted(tlists[idx])
-            a = seg['a']; b = seg['b']
-            for k in range(len(ts) - 1):
-                t0 = ts[k]; t1 = ts[k+1]
-                if t1 - t0 < 1e-7: continue
-                ax = a[0] + (b[0] - a[0]) * t0
-                ay = a[1] + (b[1] - a[1]) * t0
-                bx = a[0] + (b[0] - a[0]) * t1
-                by = a[1] + (b[1] - a[1]) * t1
-                if math.hypot(bx-ax, by-ay) < 1e-9: continue
-                subsegments.append({'a': (ax, ay), 'b': (bx, by),
-                                    'original_stroke_index': seg['stroke_index'],
-                                    'original_seg_index': seg['seg_index']})
-    else:
-        # no splitting: each original segment becomes a subsegment
-        for seg in segments:
-            subsegments.append({'a': seg['a'], 'b': seg['b'],
+    # now split each segment using its tlist
+    for idx, seg in enumerate(segments):
+        ts = sorted(tlists[idx])
+        a = seg['a']; b = seg['b']
+        for k in range(len(ts) - 1):
+            t0 = ts[k]; t1 = ts[k+1]
+            if t1 - t0 < 1e-7: continue
+            ax = a[0] + (b[0] - a[0]) * t0
+            ay = a[1] + (b[1] - a[1]) * t0
+            bx = a[0] + (b[0] - a[0]) * t1
+            by = a[1] + (b[1] - a[1]) * t1
+            if math.hypot(bx-ax, by-ay) < 1e-9: continue
+            subsegments.append({'a': (ax, ay), 'b': (bx, by),
                                 'original_stroke_index': seg['stroke_index'],
                                 'original_seg_index': seg['seg_index']})
 
@@ -467,19 +511,24 @@ async def upload_polylines(payload: Dict[str, Any] = Body(...)):
       {
         "strokes": [ [ {"x":float,"y":float}, ... ], ... ],
         "tol": <float>   # optional; tolerance for Douglas-Peucker (default 1.0)
-        "split_intersections": <bool>  # optional; if true do robust geometric splitting at intersections
       }
     Returns:
       nodes: { id: [x,y] }, edges: [[u,v,weight], ...], walk: [node_id,...], positions: [{x,y},...], total_weight
     """
     G = create_graph_helper(payload)
     tol = float(payload.get("tol", 1.0))
-    split_flag = bool(payload.get("split_intersections", False))
-
-    G = keep_largest_component(G)
+    keep_largest = bool(payload.get("keep_largest", True)) # if keep only largest component
 
     if G.number_of_nodes() == 0:
-        raise HTTPException(status_code=400, detail="empty graph (no pixels set)")
+        raise HTTPException(status_code=400, detail="empty graph")
+
+    if keep_largest:
+        G = keep_largest_component(G)
+    else:
+        G = connect_components(G)
+
+    if G.number_of_nodes() == 0:
+        raise HTTPException(status_code=400, detail="empty graph")
 
     # 3) Compute chinese postman route (your existing routine)
     try:
@@ -508,7 +557,6 @@ async def upload_polylines(payload: Dict[str, Any] = Body(...)):
         "positions": positions,
         "total_weight": float(total),
         "tol": float(tol),
-        "split_intersections": bool(split_flag)
     }
     return JSONResponse(json_resp)
 

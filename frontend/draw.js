@@ -12,7 +12,6 @@
   const computeBtn = document.getElementById('computeBtn');
   const sendBtn = document.getElementById('sendBtn');
   const tolInput = document.getElementById('dpTolerance');
-  const mergeChk = document.getElementById('mergeStrokesChk');
 
   const ctx = canvas.getContext('2d');
 
@@ -34,12 +33,6 @@
 
   // CLIENT-SPLIT: preview graph produced by splitting intersections locally (preview only)
   window.mergedGraphForPreview = null; // { nodes: [{x,y,id}], edges: [{u,v}] }
-  // optional checkbox in HTML; script does not create UI elements
-  const clientSplitChk = document.getElementById('clientSplitIntersectionsChk');
-
-  function splitIntersectionsEnabled() {
-    return clientSplitChk ? clientSplitChk.checked : false;
-  }
 
   // Handle high-DPI: make backing store scale to devicePixelRatio
   function resizeCanvasToDisplaySize() {
@@ -361,13 +354,6 @@
       ctx.stroke();
     }
 
-    // If client-split preview is enabled, compute preview graph (cheap cache)
-    if (splitIntersectionsEnabled()) {
-      // recompute preview each frame (simple). If perf is issue, debounce this call.
-      computeClientSplitAndPreview();
-    } else {
-      window.mergedGraphForPreview = null;
-    }
 
     // Draw server-returned graph overlay and animated walk
     const resp = window.lastServerResponse;
@@ -540,25 +526,16 @@
   // Build payload for server: send multiple polylines (or a single merged polyline if merge checkbox set)
   function buildPayload() {
     const tol = parseFloat(tolInput.value) || 0;
-    const splitFlag = splitIntersectionsEnabled(); // request server-side splitting if checked
     let payloadStrokes = [];
 
-    if (mergeChk && mergeChk.checked) {
-      // concatenate all strokes into one polyline
-      const merged = [];
-      for (const s of strokes) {
-        for (const p of s) merged.push({ x: p.x, y: p.y });
-      }
-      payloadStrokes = [merged];
-    } else {
-      // send strokes individually (multiple polylines)
-      payloadStrokes = strokes.map(s => s.map(p => ({ x: p.x, y: p.y })));
-    }
+    // send strokes individually (multiple polylines)
+    payloadStrokes = strokes.map(s => s.map(p => ({ x: p.x, y: p.y })));
+    const keepLargest = document.getElementById('keepLargestChk') && document.getElementById('keepLargestChk').checked;
 
     return {
       strokes: payloadStrokes,
       tol: tol,
-      split_intersections: splitFlag
+      keep_largest: keepLargest
     };
   }
 

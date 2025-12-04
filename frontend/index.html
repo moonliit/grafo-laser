@@ -72,60 +72,37 @@
         <button id="sendBtn">Send (server)</button>
       </div>
 
-      <!-- === Tolerance === -->
       <div class="control-group">
+        <!-- === Tolerance === -->
         <label style="user-select:none;">
           DP tolerance:
           <input id="dpTolerance" type="number" step="0.1" min="0" value="1.0" style="width:80px; margin-left:6px;">
           <small>Sent to server for Douglas–Peucker</small>
         </label>
-      </div>
 
-      <!-- === Merge strokes into single polyline === -->
-      <div class="control-group">
-        <label style="user-select:none;">
-          <input type="checkbox" id="mergeStrokesChk">
-          Merge strokes into single polyline (server)
-        </label>
-      </div>
-
-      <!-- ========================= NEW ITEMS BELOW ========================= -->
-
-      <!-- === Highlight all returned graph nodes === -->
-      <div class="control-group">
-        <label style="user-select:none;">
-          <input type="checkbox" id="highlightAllNodesChk">
-          Highlight all nodes
-        </label>
-      </div>
-
-      <!-- === Multi-trace merge: combine intersecting strokes === -->
-      <div class="control-group">
-        <label style="user-select:none;">
-          <input type="checkbox" id="combineIntersectingChk">
-          Combine intersecting traces (graph build)
-        </label>
-      </div>
-
-      <!-- === Animation speed override (optional) === -->
-      <div class="control-group">
+        <!-- === Animation speed override (optional) === -->
         <label style="user-select:none;">
           Anim speed:
           <input id="animSpeedInput" type="number" step="50" min="50" value="2000"
-                 style="width:80px; margin-left:6px;"
-                 oninput="if(window.vcanvas){ window.vcanvas.setAnimSpeed(this.value); }">
+            style="width:80px; margin-left:6px;"
+            oninput="if(window.vcanvas){ window.vcanvas.setAnimSpeed(this.value); }">
           <small>px/sec</small>
         </label>
       </div>
 
       <div class="control-group">
-        <label style="margin-left:10px; user-select:none;">
-          <input type="checkbox" id="clientSplitIntersectionsChk">
-          Split intersections on client
+        <!-- === Highlight all returned graph nodes === -->
+        <label style="user-select:none;">
+          <input type="checkbox" id="highlightAllNodesChk">
+          Highlight all nodes
+        </label>
+
+        <!-- === Keep only largest connected component === -->
+        <label style="user-select:none;">
+          <input type="checkbox" id="keepLargestChk">
+          Keep only largest component
         </label>
       </div>
-      <!-- ================================================================== -->
-
     </div>
 
     <div id="canvas-wrap">
