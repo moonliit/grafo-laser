@@ -564,6 +564,7 @@
       const data = await resp.json();
       window.lastServerResponse = data;
       info.innerText = `Server OK — nodes=${data.n_nodes ?? '-'} edges=${data.n_edges ?? '-'} walk_len=${(data.walk && data.walk.length) || '-'} tol=${payload.tol} split=${payload.split_intersections}`;
+      currentWalk = data.positions;
 
       // start animation using returned positions (if present)
       if (data.positions && Array.isArray(data.positions) && data.positions.length > 1) {
@@ -580,7 +581,6 @@
     }
   }
 
-  sendBtn.addEventListener('click', postPolylines);
   computeBtn.addEventListener('click', postPolylines);
 
   // Expose helpers for debugging

@@ -29,7 +29,11 @@ loadConfig().then(config => {
       return;
     }
 
-    const payload = JSON.stringify(currentWalk);
+    const walk = [...currentWalk];
+    if (walk.length !== 0) {
+      walk.pop();
+    }
+    const payload = JSON.stringify(walk);
 
     client.publish(topic, payload, {}, (err) => {
       if (err) {

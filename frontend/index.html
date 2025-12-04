@@ -6,6 +6,7 @@
 
   <!-- your existing visual stylesheet -->
   <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
@@ -112,6 +113,10 @@
     <div id="info">Draw with mouse or touch. Use "Compute" to POST polyline(s) to the server.</div>
   </div>
 
+  <script>
+    let currentWalk = [];
+  </script>
   <script src="draw.js"></script>
+  <script src="ws-mqtt.js"></script>
 </body>
 </html>
