@@ -22,7 +22,7 @@ if __name__ == "__main__":
         min_node_dist=0.13
     )
     """
-    G = obj_to_graph("mesh/cube.obj")
+    G = obj_to_graph("backend/mesh/cube.obj")
     G = connect_normalize(G)
 
     # get walk and plot it

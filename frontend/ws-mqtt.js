@@ -11,6 +11,8 @@ loadConfig().then(config => {
   const topic = config.topic;
   const brokerUrl = `ws://${ip}:${port}`;
 
+  console.log(ip, port, topic, brokerUrl);
+
   // Connect only after config is loaded
   const client = mqtt.connect(brokerUrl);
 
