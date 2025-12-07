@@ -1,3 +1,19 @@
+# IoT proyecto Frontend
+La version anterior incluia frontend y backend, levantable con docker. Esta version es obsoleta, pero se mantiene para el proyecto.
+
+Especificaciones sobre esta mas abajo.
+
+Para la version actual solo es necesario correr el frontend:
+
+```bash
+cd frontend
+python -m http.server 5500
+```
+
+Todo lo demas se puede hacer en el mismo frontend.
+
+# README de la version original (OUTDATED)
+
 # IoT proyecto Frontend + Backend
 
 ## Ejecucion

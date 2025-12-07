@@ -1,5 +1,5 @@
 async function loadConfig() {
-  const resp = await fetch("mqtt.json");
+  const resp = await fetch("original/mqtt.json");
   if (!resp.ok) throw new Error("Could not load mqtt.json");
   const config = await resp.json();
   return config;

@@ -1,122 +1,584 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Vector Canvas — Freehand Draw</title>
-
-  <!-- your existing visual stylesheet -->
-  <link rel="stylesheet" href="style.css">
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Laser — Control & Sensores (MQTT / WebSocket)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <style>
-    /* small local tweaks to ensure layout works even if you don't use the big stylesheet */
-    .container {
-      max-width: 980px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      padding-top: 8px;
-    }
-    .controls {
-      width: 100%;
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .control-group {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    #canvas-wrap {
-      width: 100%;
-      display: flex;
-      justify-content: center;
-    }
-    #canvas {
-      width: 768px;
-      max-width: 92vw;
-      height: 512px;
-      background: #fff;
-      border-radius: 6px;
-    }
-    #info {
-      min-height: 28px;
-      width: 768px;
-      max-width: 92vw;
-      text-align: center;
-    }
-    label small {
-      display: block;
-      font-weight: 400;
-      color: var(--muted, #777);
-      font-size: 0.85rem;
-    }
+:root{
+  --bg1: #0f1724;
+  --bg2: #071024;
+  --muted: #9aa6b2;
+  --accent-a: #00d4ff;
+  --accent-b: #7b61ff;
+  --accent-c: #00ffa3;
+  --danger: #ff6b6b;
+  --glass-border: rgba(255,255,255,0.04);
+  --card-bg: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  --soft-shadow: 0 10px 30px rgba(2,6,23,0.55);
+  --bar-bg: rgba(255,255,255,0.035);
+}
+
+/* Page */
+html,body{height:100%;margin:0;font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(135deg,var(--bg1) 0%,var(--bg2) 60%);color:#e6eef6;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;padding:28px;box-sizing:border-box;}
+
+/* Container */
+.container{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;}
+
+/* Header */
+.header {display:flex;flex-direction:column;gap:6px;align-items:center;}
+h3{margin:0;font-weight:800;letter-spacing:-0.2px;color:#f7fbff;font-size:1.25rem;}
+.lead{color:#cfe9ff;font-weight:400;font-size:0.95rem;margin:0;opacity:0.95}
+
+/* Panels */
+.panel {
+  width:100%;
+  background:var(--card-bg);
+  border-radius:14px;
+  border:1px solid var(--glass-border);
+  padding:14px;
+  box-shadow: var(--soft-shadow);
+  display:flex;
+  gap:16px;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.panel:hover { transform: translateY(-4px); box-shadow: 0 18px 46px rgba(2,6,23,0.65); }
+
+/* Controls layout */
+.controls { width:100%; display:flex; gap:16px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+
+/* Control group */
+.control-group{ display:flex; flex-direction:column; gap:8px; align-items:flex-start; min-width:220px; }
+.control-inline{ flex-direction:row; align-items:center; }
+
+/* Labels and inputs */
+label{ color:#cfe9ff; font-weight:600; font-size:0.95rem; display:block; }
+.small{ color:var(--muted); font-size:0.9rem; }
+input[type="text"], input[type="number"]{
+  background: rgba(255,255,255,0.02);
+  color: #e6eef6;
+  border: 1px solid rgba(255,255,255,0.03);
+  padding:10px 12px;
+  border-radius:10px;
+  font-size:0.95rem;
+  min-width:160px;
+  outline:none;
+  transition: box-shadow .12s ease, transform .08s ease;
+}
+input[type="text"]:focus, input[type="number"]:focus { box-shadow: 0 8px 20px rgba(11,18,34,0.5), inset 0 1px 0 rgba(255,255,255,0.02); transform: translateY(-2px); }
+
+/* Buttons */
+.btn {
+  border:none; cursor:pointer; padding:10px 14px; border-radius:10px; font-weight:700; font-size:0.95rem;
+  display:inline-flex; align-items:center; gap:10px; color:white; box-shadow: 0 8px 30px rgba(3,6,15,0.55);
+  background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.btn.secondary{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02)); color:var(--muted); box-shadow:none; border:1px solid rgba(255,255,255,0.03); }
+.btn.danger{ background: linear-gradient(90deg,var(--danger), #ff8a7a); }
+
+.btn svg{ width:18px; height:18px; opacity:0.95; transform:translateY(0); transition: transform .12s ease; }
+.btn:hover { transform: translateY(-4px); }
+.btn:active { transform: translateY(0); opacity:0.95; }
+
+/* Status pill */
+.status-pill { display:inline-flex; align-items:center; gap:10px; padding:8px 12px; border-radius:999px; backdrop-filter: blur(6px); background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.02); min-width:170px; justify-content:center; }
+.status-dot { width:12px; height:12px; border-radius:50%; box-shadow:0 4px 10px rgba(0,0,0,0.5); }
+.status-dot.connected { background: linear-gradient(90deg,var(--accent-c),var(--accent-a)); box-shadow:0 6px 18px rgba(0,218,180,0.12); animation: pulse 1.6s infinite; }
+.status-dot.disconnected { background:#5a6b7a; opacity:0.9; }
+
+/* pulse */
+@keyframes pulse { 0% { transform: scale(1); opacity:1; } 50% { transform: scale(1.25); opacity:0.7; } 100% { transform: scale(1); opacity:1; } }
+
+/* Info / logs */
+#info {
+  margin-top:8px; border-radius:12px; padding:12px; color:#d6e9ff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  font-size:0.95rem; background: linear-gradient(180deg, rgba(2,6,23,0.4), rgba(2,6,23,0.3)); border:1px solid rgba(255,255,255,0.02);
+}
+pre#lastRaw{ background:transparent; color:#bfe7b3; padding:10px; border-radius:8px; overflow:auto; max-height:180px; margin:8px 0 0 0; border:1px solid rgba(255,255,255,0.02); }
+
+/* Sensor bars container */
+.sensor-row { display:flex; gap:18px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; width:100%; margin-top:8px; }
+.sensor { flex:1; min-width:260px; background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005)); border-radius:12px; border:1px solid rgba(255,255,255,0.02); padding:12px; box-shadow: 0 8px 24px rgba(2,6,23,0.45); }
+.sensor h4 { margin:0 0 6px 0; font-size:0.98rem; color:#eaf9ff; }
+.sensor .meta { font-size:0.86rem; color:var(--muted); margin-bottom:8px; }
+
+/* progress bar base */
+.progress {
+  height:22px;
+  width:100%;
+  background: var(--bar-bg);
+  border-radius:12px;
+  overflow:hidden;
+  border: 1px solid rgba(255,255,255,0.02);
+  display:flex;
+  align-items:center;
+  position:relative;
+}
+
+/* fill element */
+.progress .fill {
+  height:100%;
+  width:0%;
+  border-radius:12px;
+  transform-origin: left center;
+  transition: width 600ms cubic-bezier(.2,.9,.2,1), background 400ms ease;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.6), inset 0 -6px 18px rgba(255,255,255,0.03);
+}
+
+/* percentage badge */
+.percent-badge {
+  position:absolute;
+  right:8px;
+  top:50%;
+  transform:translateY(-50%);
+  background: rgba(0,0,0,0.25);
+  padding:3px 8px;
+  border-radius:999px;
+  font-weight:700;
+  font-size:0.86rem;
+  color:#eaf9ff;
+  border:1px solid rgba(255,255,255,0.02);
+}
+
+/* numeric readout */
+.readout { display:flex; gap:10px; align-items:center; margin-top:10px; justify-content:space-between; }
+.readout .value { font-weight:800; font-size:1.18rem; color:#fff; }
+.readout .scale { font-size:0.85rem; color:var(--muted); }
+
+/* tick marks (optional) */
+.ticks { display:flex; gap:6px; margin-top:8px; align-items:center; justify-content:space-between; color:rgba(255,255,255,0.06); font-size:0.8rem; }
+
+/* faded small note */
+.small-note { color:var(--muted); font-size:0.85rem; margin-top:8px; }
+
+/* feedback toast */
+#sendFeedback {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  min-width: 220px;
+  max-width: 360px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(2,6,23,0.6);
+  color: white;
+  font-weight:700;
+  display: none;
+  align-items:center;
+  gap:10px;
+  z-index: 1200;
+}
+
+/* success / error / warn styles */
+#sendFeedback.success { background: linear-gradient(90deg,#00c88c,#00d4ff); color:#042024; }
+#sendFeedback.error { background: linear-gradient(90deg,#ff7b7b,#ff5f6d); color:#2a0707; }
+#sendFeedback.warn { background: linear-gradient(90deg,#ffd36b,#ffb36b); color:#2b1600; }
+
+/* feedback icon */
+#sendFeedback svg { width:18px; height:18px; opacity:0.95; }
+
+/* fade animation */
+@keyframes toastIn { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+#sendFeedback.show { display:flex; animation: toastIn .22s ease both; }
+
+/* responsive */
+@media (max-width:920px) {
+  #sendFeedback { right: 14px; left: 14px; bottom: 14px; }
+}
   </style>
 </head>
-
 <body>
   <div class="container">
-    <h3>Vector Canvas — freehand strokes</h3>
+    <div class="header">
+      <h3>Laser — Control & Sensores</h3>
+      <div class="lead">Publica velocidad a <code>laser/velocidad</code> y recibe sensores en <code>laser/front</code>.</div>
+    </div>
 
-    <div class="controls">
-
-      <!-- === Left group: clear / compute / send === -->
+    <!-- Connection panel -->
+    <div class="panel controls" role="region" aria-label="Conexión MQTT">
       <div class="control-group">
-        <button id="clearBtn">Clear</button>
-        <button id="computeBtn">Compute (server)</button>
-        <button id="sendBtn">Send (server)</button>
+        <label for="broker">Broker (host o IP)</label>
+        <input id="broker" type="text" placeholder="Dejar vacío = mismo host de la página" aria-label="Broker host">
+        <div class="small">WebSocket puerto <strong>9001</strong>. Ruta por defecto: <code>/mqtt</code>.</div>
       </div>
 
-      <div class="control-group">
-        <!-- === Tolerance === -->
-        <label style="user-select:none;">
-          DP tolerance:
-          <input id="dpTolerance" type="number" step="0.1" min="0" value="1.0" style="width:80px; margin-left:6px;">
-          <small>Sent to server for Douglas–Peucker</small>
-        </label>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+        <div class="status-pill" aria-live="polite" title="Estado de conexión">
+          <div id="statusDot" class="status-dot disconnected" aria-hidden="true"></div>
+          <div id="status" style="font-weight:700;color:#e6eef6;">desconectado</div>
+        </div>
 
-        <!-- === Animation speed override (optional) === -->
-        <label style="user-select:none;">
-          Anim speed:
-          <input id="animSpeedInput" type="number" step="50" min="50" value="2000"
-            style="width:80px; margin-left:6px;"
-            oninput="if(window.vcanvas){ window.vcanvas.setAnimSpeed(this.value); }">
-          <small>px/sec</small>
-        </label>
-      </div>
-
-      <div class="control-group">
-        <!-- === Highlight all returned graph nodes === -->
-        <label style="user-select:none;">
-          <input type="checkbox" id="highlightAllNodesChk">
-          Highlight all nodes
-        </label>
-
-        <!-- === Keep only largest connected component === -->
-        <label style="user-select:none;">
-          <input type="checkbox" id="keepLargestChk">
-          Keep only largest component
-        </label>
+        <div style="display:flex;gap:8px;">
+          <button id="connectBtn" class="btn" title="Conectar" aria-label="Conectar">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6"></path><path d="M18 3v6"></path><path d="M6 14v7a2 2 0 0 0 2 2h1"></path><path d="M16 14v7a2 2 0 0 1-2 2h-1"></path><path d="M8 10h8"></path></svg>Conectar
+          </button>
+          <button id="disconnectBtn" class="btn secondary" title="Desconectar" aria-label="Desconectar" disabled>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0"></path><path d="M6 16v1a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1"></path></svg>Desconectar
+          </button>
+        </div>
       </div>
     </div>
 
-    <div id="canvas-wrap">
-      <canvas id="canvas" width="768" height="512"></canvas>
+    <!-- Velocity publish panel -->
+    <div class="panel controls" role="region" aria-label="Enviar velocidad">
+      <div class="control-group">
+        <label for="vel">Velocidad (decimal)</label>
+        <input id="vel" type="number" step="any" value="0.0" aria-label="Velocidad decimal">
+        <div class="small">Se convertirá a entero <strong>0–255</strong> antes de publicar.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="sendBtn" class="btn" title="Enviar velocidad" aria-label="Enviar velocidad" disabled>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"></path><path d="M22 2l-7 20L11 13 2 9l20-7z"></path></svg>Enviar
+          </button>
+          <button id="clearLogBtn" class="btn secondary" title="Limpiar logs" aria-label="Limpiar logs">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>Limpiar logs
+          </button>
+        </div>
+        <div class="small" style="text-align:center;">Topic publicación: <code>laser/velocidad</code></div>
+      </div>
     </div>
 
-    <div id="info">Draw with mouse or touch. Use "Compute" to POST polyline(s) to the server.</div>
+    <!-- Sensor panel -->
+    <div class="panel" role="region" aria-label="Lecturas de sensores">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;">
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div>
+            <div style="font-weight:700;color:#e9fbff;">Suscrito a <code>laser/front</code></div>
+            <div class="small">Formato: <code>{"temperatura": 24.5, "humedad": 55.0}</code></div>
+          </div>
+        </div>
+
+        <div id="parsed" aria-live="polite">temperatura: —  |  humedad: —</div>
+      </div>
+
+      <div style="flex:1;min-width:320px;">
+        <div class="small" style="display:flex;justify-content:space-between;align-items:center;">
+          <div>Último mensaje (texto bruto)</div>
+          <div class="small">Topic: <code>laser/front</code></div>
+        </div>
+        <div id="info">
+          <pre id="lastRaw">— ninguno —</pre>
+        </div>
+      </div>
+
+      <!-- sensor bars -->
+      <div style="width:100%; margin-top:12px;">
+        <div class="sensor-row">
+          <!-- Temperature sensor -->
+          <div class="sensor" aria-label="Temperatura">
+            <h4>Temperatura</h4>
+            <div class="meta">Comparada contra máximo configurable</div>
+
+            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="tempBar">
+              <div class="fill" id="tempFill" style="width:0%; background: linear-gradient(90deg,#ffb03b,#ff5f6d);"></div>
+              <div class="percent-badge" id="tempPercent">0%</div>
+            </div>
+
+            <div class="readout">
+              <div class="value" id="tempValue">— °C</div>
+              <div class="scale small">Max: <span id="tempMaxLabel">50°C</span></div>
+            </div>
+
+            <div class="ticks" aria-hidden="true">
+              <span>0</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span>
+            </div>
+            <div class="small-note">Color cambia a rojo si supera el 80% del máximo.</div>
+          </div>
+
+          <!-- Humidity sensor -->
+          <div class="sensor" aria-label="Humedad">
+            <h4>Humedad</h4>
+            <div class="meta">Porcentaje relativo al 100%</div>
+
+            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="humBar">
+              <div class="fill" id="humFill" style="width:0%; background: linear-gradient(90deg,#00d4ff,#7b61ff);"></div>
+              <div class="percent-badge" id="humPercent">0%</div>
+            </div>
+
+            <div class="readout">
+              <div class="value" id="humValue">— %</div>
+              <div class="scale small">Max: <span id="humMaxLabel">100%</span></div>
+            </div>
+
+            <div class="ticks" aria-hidden="true">
+              <span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100</span>
+            </div>
+            <div class="small-note">Ideal entre 30%–60% para la mayoría de equipos.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:0.85rem;color:var(--muted);max-width:900px;text-align:center;">
+      Nota: si tu broker usa otra ruta WS (ej. no <code>/mqtt</code>) ajusta la URL en el código.
+    </div>
   </div>
 
+  <!-- feedback toast -->
+  <div id="sendFeedback" role="status" aria-live="polite">
+    <!-- icon + message inserted dynamically -->
+  </div>
+
+  <!-- mqtt library -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
   <script>
-    let currentWalk = [];
+  (function () {
+    // Topics
+    const TOPIC_PUB_VEL = 'laser/velocidad';
+    const TOPIC_SUB_FRONT = 'laser/front';
+
+    // DOM
+    const brokerInput = document.getElementById('broker');
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const statusEl = document.getElementById('status');
+    const statusDot = document.getElementById('statusDot');
+    const velInput = document.getElementById('vel');
+    const sendBtn = document.getElementById('sendBtn');
+    const lastRaw = document.getElementById('lastRaw');
+    const parsedEl = document.getElementById('parsed');
+    const clearLogBtn = document.getElementById('clearLogBtn');
+    const sendFeedback = document.getElementById('sendFeedback');
+
+    // bars / values
+    const tempFill = document.getElementById('tempFill');
+    const tempPercent = document.getElementById('tempPercent');
+    const tempValue = document.getElementById('tempValue');
+    const tempMaxLabel = document.getElementById('tempMaxLabel');
+    const humFill = document.getElementById('humFill');
+    const humPercent = document.getElementById('humPercent');
+    const humValue = document.getElementById('humValue');
+    const humMaxLabel = document.getElementById('humMaxLabel');
+
+    // settable maxima (change here if needed)
+    let MAX_TEMP = 50.0; // degrees Celsius considered "100%"
+    let MAX_HUM = 100.0; // percent
+
+    // initialize labels
+    tempMaxLabel.textContent = `${MAX_TEMP}°C`;
+    humMaxLabel.textContent = `${MAX_HUM}%`;
+
+    let client = null;
+    let toastTimer = null;
+
+    function buildWsUrl(host) {
+      const effectiveHost = (host && host.trim()) ? host.trim() : window.location.hostname;
+      const scheme = (location.protocol === 'https:') ? 'wss' : 'ws';
+      return `${scheme}://${effectiveHost}:9001/mqtt`;
+    }
+
+    sendBtn.disabled = false;
+
+    function setDisconnected(text) {
+      statusEl.textContent = 'desconectado' + (text ? ' — ' + text : '');
+      statusDot.classList.remove('connected');
+      statusDot.classList.add('disconnected');
+      connectBtn.disabled = false;
+      disconnectBtn.disabled = true;
+    }
+    function setConnected(text) {
+      statusEl.textContent = 'conectado' + (text ? ' — ' + text : '');
+      statusDot.classList.remove('disconnected');
+      statusDot.classList.add('connected');
+      connectBtn.disabled = true;
+      disconnectBtn.disabled = false;
+    }
+
+    function safeParseJson(s) {
+      try { return JSON.parse(s); } catch (e) { return null; }
+    }
+
+    // clamp helper
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    // update temp bar UI given temp value (number)
+    function updateTempUI(temp) {
+      const pct = clamp((temp / MAX_TEMP) * 100, 0, 100);
+      const pctStr = Math.round(pct) + '%';
+      tempFill.style.width = pct + '%';
+      tempPercent.textContent = pctStr;
+      tempValue.textContent = `${Number(temp).toFixed(1)} °C`;
+      if (pct <= 60) {
+        tempFill.style.background = 'linear-gradient(90deg,#7be495,#00d4ff)';
+        tempFill.style.boxShadow = '0 8px 20px rgba(0,212,255,0.08), inset 0 -6px 18px rgba(255,255,255,0.02)';
+      } else if (pct <= 80) {
+        tempFill.style.background = 'linear-gradient(90deg,#ffd36b,#ff8a5b)';
+        tempFill.style.boxShadow = '0 8px 20px rgba(255,150,50,0.08), inset 0 -6px 18px rgba(255,255,255,0.02)';
+      } else {
+        tempFill.style.background = 'linear-gradient(90deg,#ff6b6b,#ff3b3b)';
+        tempFill.style.boxShadow = '0 10px 28px rgba(255,60,60,0.12), inset 0 -6px 18px rgba(255,255,255,0.02)';
+      }
+      const bar = document.getElementById('tempBar');
+      bar.setAttribute('aria-valuenow', Math.round(pct));
+    }
+
+    // update humidity UI
+    function updateHumUI(hum) {
+      const pct = clamp((hum / MAX_HUM) * 100, 0, 100);
+      const pctStr = Math.round(pct) + '%';
+      humFill.style.width = pct + '%';
+      humPercent.textContent = pctStr;
+      humValue.textContent = `${Number(hum).toFixed(1)} %`;
+      humFill.style.background = 'linear-gradient(90deg,#00d4ff,#7b61ff)';
+      humFill.style.boxShadow = '0 8px 20px rgba(123,97,255,0.08), inset 0 -6px 18px rgba(255,255,255,0.02)';
+      if (pct < 25) {
+        humFill.style.boxShadow = '0 8px 20px rgba(0,212,255,0.06), 0 0 18px rgba(0,212,255,0.06)';
+      } else if (pct > 85) {
+        humFill.style.boxShadow = '0 8px 20px rgba(123,97,255,0.09), 0 0 18px rgba(255,80,80,0.06)';
+      }
+      const bar = document.getElementById('humBar');
+      bar.setAttribute('aria-valuenow', Math.round(pct));
+    }
+
+    // show transient feedback toast
+    function showFeedback(text, kind = 'success', timeout = 3000) {
+      clearTimeout(toastTimer);
+      sendFeedback.className = '';
+      sendFeedback.classList.add(kind);
+      sendFeedback.innerHTML = ''; // clear
+      // choose icon
+      let icon = '';
+      if (kind === 'success') {
+        icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>';
+      } else if (kind === 'error') {
+        icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"></path></svg>';
+      } else {
+        icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>';
+      }
+      sendFeedback.insertAdjacentHTML('beforeend', icon + '<div style="flex:1;text-align:left;padding-left:6px;">' + escapeHtml(text) + '</div>');
+
+      // animate in
+      sendFeedback.classList.add('show');
+
+      // auto-hide
+      toastTimer = setTimeout(() => {
+        sendFeedback.classList.remove('show');
+        // hide after animation frame
+        setTimeout(() => { sendFeedback.style.display = 'none'; }, 220);
+      }, timeout);
+
+      // ensure visible
+      sendFeedback.style.display = 'flex';
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function onMessage(topic, payload) {
+      // Only process laser/front (so lastRaw shows only that)
+      if (topic !== TOPIC_SUB_FRONT) return;
+      const text = (payload instanceof Uint8Array) ? new TextDecoder().decode(payload) : String(payload);
+      lastRaw.textContent = `[${new Date().toLocaleTimeString()}] ${topic}: ${text}`;
+      lastRaw.classList.add('fade-in');
+      setTimeout(() => lastRaw.classList.remove('fade-in'), 280);
+      const obj = safeParseJson(text);
+      if (obj) {
+        const tTxt = (obj.temperatura !== undefined) ? String(obj.temperatura) : '—';
+        const hTxt = (obj.humedad !== undefined) ? String(obj.humedad) : '—';
+        parsedEl.textContent = `temperatura: ${tTxt}  |  humedad: ${hTxt}`;
+        if (obj.temperatura !== undefined && isFinite(Number(obj.temperatura))) updateTempUI(Number(obj.temperatura));
+        if (obj.humedad !== undefined && isFinite(Number(obj.humedad))) updateHumUI(Number(obj.humedad));
+      } else {
+        parsedEl.textContent = 'JSON inválido o sin campos esperados';
+      }
+    }
+
+    function connectToBroker() {
+      const url = buildWsUrl(brokerInput.value);
+      setDisconnected(`conectando a ${url} ...`);
+      const clientId = 'webclient_' + Math.random().toString(16).slice(2,10);
+      const opts = { keepalive:30, clientId, reconnectPeriod:3000, connectTimeout:10000 };
+      try {
+        client = mqtt.connect(url, opts);
+
+        client.on('connect', function () {
+          setConnected(`(id=${clientId})`);
+          client.subscribe(TOPIC_SUB_FRONT, { qos: 0 }, function (err) {
+            if (err) console.warn('Error suscribiendo:', err);
+          });
+        });
+
+        client.on('reconnect', function () { setDisconnected('reconectando ...'); });
+        client.on('close', function () { setDisconnected('conexión cerrada'); });
+        client.on('offline', function () { setDisconnected('offline'); });
+        client.on('error', function (err) { console.error('MQTT error', err); setDisconnected('error'); });
+        // filter messages by topic early
+        client.on('message', function (topic, payload) { onMessage(topic, payload); });
+      } catch (e) {
+        console.error('Error creando cliente MQTT:', e);
+        setDisconnected('error al crear cliente');
+      }
+    }
+
+    function disconnectBroker() {
+      if (client) {
+        try {
+          client.end(true, {}, function () {
+            client = null;
+            setDisconnected('desconectado (by user)');
+          });
+        } catch (e) {
+          console.warn('Error al desconectar:', e);
+          client = null;
+          setDisconnected('desconectado (error)');
+        }
+      }
+    }
+
+    function publishVelocity() {
+      if (!client || !client.connected) {
+        showFeedback('No conectado al broker', 'warn', 2500);
+        return;
+      }
+      let raw = Number(velInput.value);
+      if (!isFinite(raw)) { showFeedback('Introduce un número válido', 'error', 2500); return; }
+      let v = Math.round(raw);
+      v = Math.max(0, Math.min(255, v));
+      const payload = String(v);
+      client.publish(TOPIC_PUB_VEL, payload, { qos: 0 }, function (err) {
+        if (err) {
+          console.error('Error publicando velocidad:', err);
+          showFeedback('No se pudo enviar: ' + (err.message || String(err)), 'error', 4500);
+        } else {
+          showFeedback(`Velocidad ${v} enviada correctamente`, 'success', 3000);
+        }
+      });
+    }
+
+    // UI events
+    connectBtn.addEventListener('click', connectToBroker);
+    disconnectBtn.addEventListener('click', disconnectBroker);
+    sendBtn.addEventListener('click', publishVelocity);
+    clearLogBtn.addEventListener('click', function () {
+      lastRaw.textContent = '— ninguno —';
+      parsedEl.textContent = 'temperatura: —  |  humedad: —';
+      updateTempUI(0);
+      updateHumUI(0);
+    });
+
+    document.addEventListener('submit', (e) => { e.preventDefault(); });
+
+    // Initialize bars with zero
+    updateTempUI(0);
+    updateHumUI(0);
+
+    // Optional: uncomment to auto-connect on same host
+    // if (window.location.hostname && window.location.hostname !== '') connectToBroker();
+  })();
   </script>
-  <script src="draw.js"></script>
-  <script src="ws-mqtt.js"></script>
 </body>
 </html>
